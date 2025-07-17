@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale-1.0">
+    <title>Editor de Matriz de Visibilidade - Acompanhante Virtual</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="flex flex-col h-screen">
+        <header class="bg-gray-800 shadow-lg p-3 flex flex-wrap items-center justify-between gap-4 z-10 text-white">
+            <h1 class="text-xl font-bold">Editor de Matriz</h1>
+
+            <div class="flex items-center gap-6">
+                <div class="flex items-center gap-2">
+                    <label class="font-semibold text-gray-300">Modo:</label>
+                    <div class="flex rounded-lg bg-gray-700 p-1">
+                        <button id="mode-walkable" class="px-3 py-1 text-sm font-semibold rounded-md bg-blue-600 text-white shadow">Andável</button>
+                        <button id="mode-camera" class="px-3 py-1 text-sm font-semibold rounded-md text-gray-300">Câmeras</button>
+                    </div>
+                </div>
+                
+                <div class="flex items-center gap-2">
+                     <button id="btn-brush-mode" class="flex items-center gap-2 bg-gray-600 hover:bg-gray-500 text-white font-semibold py-2 px-3 rounded-lg transition-colors text-sm" title="Ativar/Desativar modo pincel">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
+                        </svg>
+                        Modo Pincel
+                    </button>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <label for="toggle-tooltip" class="font-semibold text-gray-300 cursor-pointer">Info ao passar o mouse:</label>
+                    <input type="checkbox" id="toggle-tooltip" class="h-5 w-5 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 cursor-pointer" checked>
+                </div>
+            </div>
+
+             <div class="flex items-center gap-3">
+                 <div>
+                    <label for="region-id" class="font-semibold text-gray-300">Region ID:</label>
+                    <input type="number" id="region-id" value="1" class="border rounded-md px-2 py-1 w-20 bg-gray-700 border-gray-600 focus:ring-2 focus:ring-blue-500 outline-none text-white">
+                </div>
+                <div class="flex items-center gap-2">
+                    <button id="btn-fill-walkable" class="bg-gray-600 hover:bg-gray-500 text-white font-semibold py-2 px-3 rounded-lg transition-colors text-sm" title="Marcar Tudo como Andável">Preencher</button>
+                    <button id="btn-fill-unwalkable" class="bg-gray-600 hover:bg-gray-500 text-white font-semibold py-2 px-3 rounded-lg transition-colors text-sm" title="Marcar Tudo como Não Andável">Limpar</button>
+                </div>
+                <label for="load-json-input" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors cursor-pointer text-sm">
+                    Carregar JSON
+                </label>
+                <input type="file" id="load-json-input" class="hidden" accept=".json">
+                <button id="btn-gerar-json" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 transition-colors text-sm">Salvar JSON</button>
+            </div>
+        </header>
+
+        <main id="map" class="flex-grow"></main>
+    </div>
+
+    <div id="camera-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center" style="z-index: 2000;">
+        <div class="bg-gray-800 text-white rounded-lg shadow-xl p-6 w-full max-w-md">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold">Gerenciar Câmeras na Célula <span id="modal-cell-info" class="text-blue-400"></span></h2>
+                <button id="btn-close-modal" class="text-gray-400 hover:text-white text-3xl leading-none">&times;</button>
+            </div>
+            
+            <div class="mb-4">
+                <h3 class="font-semibold mb-2">Câmeras Atribuídas:</h3>
+                <div id="camera-list" class="bg-gray-700 rounded-md p-3 min-h-[60px] max-h-48 overflow-y-auto">
+                    </div>
+            </div>
+
+            <div>
+                <label for="new-camera-name" class="font-semibold mb-2 block">Adicionar Nova Câmera:</label>
+                <div class="flex gap-2">
+                    <input type="text" id="new-camera-name" placeholder="ex: cam_entrada_01" class="flex-grow border rounded-md px-3 py-2 bg-gray-700 border-gray-600 focus:ring-2 focus:ring-blue-500 outline-none text-white">
+                    <button id="btn-add-camera" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors">Adicionar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    
+    <script src="script.js" defer></script>
+</body>
+</html>
