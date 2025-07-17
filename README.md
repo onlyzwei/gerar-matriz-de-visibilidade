@@ -1,1 +1,3 @@
-"# gerar-matriz-de-visibilidade" 
+# instalação
+npm install
+npm install express
