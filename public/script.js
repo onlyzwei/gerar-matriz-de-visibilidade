@@ -77,6 +77,90 @@ const newCameraNameInput = document.getElementById('new-camera-name');
 const addCameraButton = document.getElementById('btn-add-camera');
 const closeModalButton = document.getElementById('btn-close-modal');
 
+// --- MY POSITION / GEOLOCATION UI ---
+const myPositionBtn = document.getElementById('btn-my-position');
+const myPositionIndicator = document.getElementById('my-position-indicator');
+let positionWatchId = null;
+let positionMarker = null;
+let positionAccuracyCircle = null;
+
+function formatCoords(lat, lng) {
+    return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+}
+
+function startWatchingPosition() {
+    if (!navigator.geolocation) {
+        alert('Geolocalização não é suportada pelo navegador.');
+        return;
+    }
+    if (positionWatchId !== null) return; // já está observando
+    try {
+        positionWatchId = navigator.geolocation.watchPosition((pos) => {
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+            const acc = pos.coords.accuracy;
+            updatePositionMarker(lat, lng, acc);
+        }, handleGeolocationError, { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 });
+
+        if (myPositionBtn) myPositionBtn.textContent = 'Parar posição';
+        if (myPositionIndicator) { myPositionIndicator.classList.remove('hidden'); myPositionIndicator.textContent = 'Aguardando posição...'; }
+    } catch (err) {
+        console.error('Erro ao iniciar geolocalização:', err);
+        alert('Não foi possível iniciar a geolocalização. Veja o console para detalhes.');
+    }
+}
+
+function stopWatchingPosition() {
+    if (positionWatchId !== null) {
+        navigator.geolocation.clearWatch(positionWatchId);
+        positionWatchId = null;
+    }
+    if (positionMarker) { map.removeLayer(positionMarker); positionMarker = null; }
+    if (positionAccuracyCircle) { map.removeLayer(positionAccuracyCircle); positionAccuracyCircle = null; }
+    if (myPositionBtn) myPositionBtn.textContent = 'Mostrar minha posição';
+    if (myPositionIndicator) { myPositionIndicator.classList.add('hidden'); myPositionIndicator.textContent = ''; }
+}
+
+function updatePositionMarker(lat, lng, accuracy) {
+    const latlng = L.latLng(lat, lng);
+    if (!positionMarker) {
+        positionMarker = L.marker(latlng, { title: 'Minha posição' }).addTo(map);
+    } else {
+        positionMarker.setLatLng(latlng);
+    }
+    if (!positionAccuracyCircle) {
+        positionAccuracyCircle = L.circle(latlng, { radius: accuracy, color: '#60A5FA', fillColor: '#60A5FA', fillOpacity: 0.12 }).addTo(map);
+    } else {
+        positionAccuracyCircle.setLatLng(latlng).setRadius(accuracy);
+    }
+    if (myPositionIndicator) myPositionIndicator.textContent = `${formatCoords(lat, lng)} (±${Math.round(accuracy)} m)`;
+    // centralizar no usuário na primeira posição ou sempre? atualmente centraliza sempre
+    map.setView(latlng);
+}
+
+function handleGeolocationError(err) {
+    stopWatchingPosition();
+    let msg = 'Erro desconhecido na geolocalização.';
+    if (err.code === 1) msg = 'Permissão negada. Permita acesso à localização no navegador.';
+    else if (err.code === 2) msg = 'Posição não disponível.';
+    else if (err.code === 3) msg = 'Tempo de requisição esgotou.';
+    alert(msg);
+}
+
+if (myPositionBtn) {
+    myPositionBtn.addEventListener('click', () => {
+        if (positionWatchId === null) {
+            // Geolocation exige contexto seguro (https) em muitos navegadores
+            if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+                if (!confirm('Geolocalização exige conexão segura (HTTPS) na maioria dos navegadores. Deseja tentar mesmo assim?')) return;
+            }
+            startWatchingPosition();
+        } else {
+            stopWatchingPosition();
+        }
+    });
+}
+
 // --- CAMADA DE GRID COM CANVAS OTIMIZADA ---
 const GridCanvasLayer = L.GridLayer.extend({
     createTile: function (coords) {
