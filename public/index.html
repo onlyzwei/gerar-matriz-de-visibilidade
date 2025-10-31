@@ -22,6 +22,7 @@
                     <div class="flex rounded-lg bg-gray-700 p-1">
                         <button id="mode-walkable" class="px-3 py-1 text-sm font-semibold rounded-md bg-blue-600 text-white shadow">Andável</button>
                         <button id="mode-camera" class="px-3 py-1 text-sm font-semibold rounded-md text-gray-300">Câmeras</button>
+                        <button id="mode-accessible" class="px-3 py-1 text-sm font-semibold rounded-md text-gray-300">Acessível</button>
                     </div>
                 </div>
                 
@@ -59,7 +60,34 @@
             </div>
         </header>
 
-        <main id="map" class="flex-grow"></main>
+        <main id="map" class="flex-grow relative">
+            <!-- Legenda -->
+            <div class="absolute bottom-4 right-4 bg-gray-800 text-white rounded-lg shadow-lg p-4 z-50" style="max-width: 250px;">
+                <h3 class="font-bold mb-3 text-sm">Legenda</h3>
+                <div class="space-y-2 text-xs">
+                    <div class="flex items-center gap-2">
+                        <div class="w-4 h-4 rounded" style="background-color: #A0AEC0; border: 1px solid #718096;"></div>
+                        <span>Não Andável</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <div class="w-4 h-4 rounded" style="background-color: #3B82F6; border: 1px solid #3B82F6;"></div>
+                        <span>Andável</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <div class="w-4 h-4 rounded" style="background-color: #10B981; border: 1px solid #10B981;"></div>
+                        <span>Acessível</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <div class="w-4 h-4 rounded" style="background-color: #F97316; border: 1px solid #EA580C;"></div>
+                        <span>Com Câmera</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <div class="w-4 h-4 rounded" style="background-color: #8B5CF6; border: 1px solid #8B5CF6;"></div>
+                        <span>Acessível + Câmera</span>
+                    </div>
+                </div>
+            </div>
+        </main>
     </div>
 
     <div id="camera-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center" style="z-index: 2000;">

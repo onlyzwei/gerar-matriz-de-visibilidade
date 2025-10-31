@@ -14,7 +14,9 @@ let TAMANHO_CELULA = 0.00003; // Tamanho de célula menor para alta resolução
 // Estilos para as células
 const ESTILO_NAO_ANDAVEL = { stroke: "#718096", weight: 0.5, fill: "#A0AEC0", fillOpacity: 0.15 };
 const ESTILO_ANDAVEL = { stroke: "#3B82F6", weight: 1, fill: "#3B82F6", fillOpacity: 0.3 };
+const ESTILO_ACESSIVEL = { stroke: "#10B981", weight: 1.5, fill: "#10B981", fillOpacity: 0.5 };
 const ESTILO_CAMERA = { stroke: "#EA580C", weight: 1.5, fill: "#F97316", fillOpacity: 0.7 };
+const ESTILO_ACESSIVEL_CAMERA = { stroke: "#8B5CF6", weight: 1.5, fill: "#8B5CF6", fillOpacity: 0.6 };
 
 // --- ESTADO DA APLICAÇÃO ---
 let editMode = 'walkable';
@@ -63,6 +65,7 @@ layersControl = L.control.layers(baseMaps).addTo(map);
 // --- ELEMENTOS DO DOM ---
 const modeWalkableBtn = document.getElementById('mode-walkable');
 const modeCameraBtn = document.getElementById('mode-camera');
+const modeAccessibleBtn = document.getElementById('mode-accessible');
 const brushModeBtn = document.getElementById('btn-brush-mode');
 const generateBtn = document.getElementById('btn-gerar-json');
 const regionIdInput = document.getElementById('region-id');
@@ -180,7 +183,20 @@ const GridCanvasLayer = L.GridLayer.extend({
             for (let c = colMin; c <= colMax; c++) {
                 if (!matrixState[r] || !matrixState[r][c]) continue;
                 const cellState = matrixState[r][c];
-                const style = cellState.cameras.length > 0 ? ESTILO_CAMERA : (cellState.walkable ? ESTILO_ANDAVEL : ESTILO_NAO_ANDAVEL);
+                
+                // Prioridade: Acessível+Câmeras > Câmeras > Acessível > Andável > Não Andável
+                let style;
+                if (cellState.accessible && cellState.cameras.length > 0) {
+                    style = ESTILO_ACESSIVEL_CAMERA;
+                } else if (cellState.cameras.length > 0) {
+                    style = ESTILO_CAMERA;
+                } else if (cellState.accessible) {
+                    style = ESTILO_ACESSIVEL;
+                } else if (cellState.walkable) {
+                    style = ESTILO_ANDAVEL;
+                } else {
+                    style = ESTILO_NAO_ANDAVEL;
+                }
                 
                 const lat = GRID_BOUNDS.maxLat - (r * TAMANHO_CELULA);
                 const lng = GRID_BOUNDS.minLng + (c * TAMANHO_CELULA);
@@ -217,7 +233,6 @@ function updateLoop() {
 // --- FUNÇÕES PRINCIPAIS ---
 function inicializarMatriz(loadedMatrix = null) {
     if (gridLayer) {
-        // MODIFICAÇÃO 3: Remover a camada antiga do controle antes de removê-la do mapa
         if (layersControl) {
             layersControl.removeLayer(gridLayer);
         }
@@ -231,7 +246,7 @@ function inicializarMatriz(loadedMatrix = null) {
         for (let r = 0; r < numRows; r++) {
             const rowState = [];
             for (let c = 0; c < numCols; c++) {
-                rowState.push({ walkable: false, cameras: [] });
+                rowState.push({ walkable: false, accessible: false, cameras: [] });
             }
             matrixState.push(rowState);
         }
@@ -239,7 +254,6 @@ function inicializarMatriz(loadedMatrix = null) {
     gridLayer = new GridCanvasLayer();
     gridLayer.addTo(map);
 
-    // MODIFICAÇÃO 4: Adicionar a nova camada ao controle como uma camada de sobreposição
     if (layersControl) {
         layersControl.addOverlay(gridLayer, "Matriz de Visibilidade");
     }
@@ -250,10 +264,19 @@ function inicializarMatriz(loadedMatrix = null) {
 
 
 function latLngToCell(latlng) {
-    if (!latlng || latlng.lat > GRID_BOUNDS.maxLat || latlng.lat < GRID_BOUNDS.minLat || latlng.lng < GRID_BOUNDS.minLng || latlng.lng > GRID_BOUNDS.maxLng) return null;
+    if (!latlng || latlng.lat > GRID_BOUNDS.maxLat || latlng.lat < GRID_BOUNDS.minLat || latlng.lng < GRID_BOUNDS.minLng || latlng.lng > GRID_BOUNDS.maxLng) {
+        return null;
+    }
     const row = Math.floor((GRID_BOUNDS.maxLat - latlng.lat) / TAMANHO_CELULA);
     const col = Math.floor((latlng.lng - GRID_BOUNDS.minLng) / TAMANHO_CELULA);
-    if (matrixState[row] && matrixState[row][col]) return { row, col, cellState: matrixState[row][col] };
+    if (matrixState[row] && matrixState[row][col]) {
+        const cellState = matrixState[row][col];
+        // Garantir que cellState tem os campos necessários
+        if (!cellState.walkable) cellState.walkable = false;
+        if (!cellState.accessible) cellState.accessible = false;
+        if (!cellState.cameras) cellState.cameras = [];
+        return { row, col, cellState };
+    }
     return null;
 }
 
@@ -308,6 +331,7 @@ map.on('click', (e) => {
     if (!cellInfo) return;
     if (editMode === 'walkable') toggleWalkable(cellInfo.row, cellInfo.col);
     else if (editMode === 'camera') openCameraEditor(cellInfo.row, cellInfo.col, cellInfo.cellState);
+    else if (editMode === 'accessible') toggleAccessible(cellInfo.row, cellInfo.col);
 });
 
 // --- FUNÇÕES DE MANIPULAÇÃO DE DADOS ---
@@ -317,6 +341,15 @@ function toggleWalkable(row, col, forceState = null) {
     if (cellState.walkable === newState) return;
     cellState.walkable = newState;
     if (!cellState.walkable) cellState.cameras = [];
+    isGridDirty = true;
+}
+
+function toggleAccessible(row, col, forceState = null) {
+    const cellState = matrixState[row][col];
+    const newState = forceState !== null ? forceState : !cellState.accessible;
+    if (cellState.accessible === newState) return;
+    cellState.accessible = newState;
+    // NÃO torna automaticamente andável - usuário edita independentemente
     isGridDirty = true;
 }
 
@@ -363,7 +396,29 @@ function carregarJson(event) {
                 Object.assign(GRID_BOUNDS, data.grid_bounds || {});
                 TAMANHO_CELULA = data.cell_size || TAMANHO_CELULA;
                 document.getElementById('region-id').value = data.region_id;
-                inicializarMatriz(data.matrix);
+                
+                // Normalizar matriz: garantir que cada célula tem walkable, accessible e cameras
+                const normalizedMatrix = data.matrix.map(row => {
+                    if (!row || row.length === 0) return [];
+                    return row.map(cell => {
+                        // Se cell for null, undefined ou um array vazio, criar objeto padrão
+                        if (!cell || Array.isArray(cell)) {
+                            return { walkable: false, accessible: false, cameras: [] };
+                        }
+                        return {
+                            walkable: cell.walkable === true,
+                            accessible: cell.accessible === true,
+                            cameras: Array.isArray(cell.cameras) ? cell.cameras : []
+                        };
+                    });
+                });
+                
+                // Remover linhas completamente vazias do final
+                while (normalizedMatrix.length > 0 && normalizedMatrix[normalizedMatrix.length - 1].length === 0) {
+                    normalizedMatrix.pop();
+                }
+                
+                inicializarMatriz(normalizedMatrix);
                 alert("Matriz carregada com sucesso!");
             } else {
                 alert("Arquivo JSON inválido. Verifique o formato.");
@@ -378,8 +433,14 @@ function carregarJson(event) {
 }
 
 function getTooltipText(cellState, row, col) {
-    let text = `<b>Pos: [${row}, ${col}]</b><br>Andável: ${cellState.walkable ? 'Sim' : 'Não'}`;
-    if (cellState.cameras.length > 0) {
+    // Garantir que cellState tem os campos necessários
+    if (!cellState) {
+        return `<b>Pos: [${row}, ${col}]</b><br>Andável: Não<br>Acessível: Não`;
+    }
+    let text = `<b>Pos: [${row}, ${col}]</b><br>`;
+    text += `Andável: ${cellState.walkable ? 'Sim' : 'Não'}<br>`;
+    text += `Acessível: ${cellState.accessible ? 'Sim' : 'Não'}`;
+    if (cellState.cameras && cellState.cameras.length > 0) {
         text += `<br>Câmeras: ${cellState.cameras.join(', ')}`;
     }
     return text;
@@ -435,7 +496,10 @@ function setEditMode(mode) {
     modeCameraBtn.classList.toggle('bg-blue-600', mode === 'camera');
     modeCameraBtn.classList.toggle('text-white', mode === 'camera');
     modeCameraBtn.classList.toggle('shadow', mode === 'camera');
-    if (isBrushModeActive && mode === 'camera') toggleBrushMode();
+    modeAccessibleBtn.classList.toggle('bg-blue-600', mode === 'accessible');
+    modeAccessibleBtn.classList.toggle('text-white', mode === 'accessible');
+    modeAccessibleBtn.classList.toggle('shadow', mode === 'accessible');
+    if (isBrushModeActive && mode !== 'walkable') toggleBrushMode();
 }
 
 function gerarJson() {
@@ -465,6 +529,7 @@ function toggleTooltips() {
 // --- EVENT LISTENERS ---
 modeWalkableBtn.addEventListener('click', () => setEditMode('walkable'));
 modeCameraBtn.addEventListener('click', () => setEditMode('camera'));
+modeAccessibleBtn.addEventListener('click', () => setEditMode('accessible'));
 brushModeBtn.addEventListener('click', toggleBrushMode);
 generateBtn.addEventListener('click', gerarJson);
 fillWalkableBtn.addEventListener('click', () => preencherTudo(true));
