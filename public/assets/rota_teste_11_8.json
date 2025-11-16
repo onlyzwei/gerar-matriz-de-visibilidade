@@ -280128,7 +280128,7 @@
         "cameras": []
       },
       {
-        "walkable": false,
+        "walkable": true,
         "accessible": true,
         "cameras": []
       },
@@ -322967,7 +322967,7 @@
         "cameras": []
       },
       {
-        "walkable": false,
+        "walkable": true,
         "accessible": true,
         "cameras": []
       },
